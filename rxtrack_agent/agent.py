@@ -2,30 +2,19 @@
 RxTrack Agent - Google ADK version
 Adapted from the original AWS Strands Agents SDK version,
 built for the "All Things Agentic" hackathon.
+Now backed by Google Cloud Firestore for persistent storage.
 """
 
 from google.adk.agents import Agent
+from google.cloud import firestore
 from datetime import datetime, timedelta
-import json
-import os
 
-DATA_FILE = "prescriptions.json"
-
-
-def _load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return []
-
-
-def _save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+db = firestore.Client()
+COLLECTION = "prescriptions"
 
 
 def add_prescription(medication_name: str, dose: str, duration_days: int) -> str:
-    """Add a new prescription and calculate when the treatment ends.
+    """Add a new prescription and calculate when treatment ends.
 
     Args:
         medication_name: Name of the medication.
@@ -35,7 +24,6 @@ def add_prescription(medication_name: str, dose: str, duration_days: int) -> str
     start_date = datetime.now().date()
     end_date = start_date + timedelta(days=duration_days)
 
-    data = _load_data()
     entry = {
         "medication_name": medication_name,
         "dose": dose,
@@ -43,16 +31,15 @@ def add_prescription(medication_name: str, dose: str, duration_days: int) -> str
         "end_date": str(end_date),
         "status": "active",
     }
-    data.append(entry)
-    _save_data(data)
+    db.collection(COLLECTION).add(entry)
 
-    return f"Added {medication_name}. Treatment runs from {start_date} to {end_date}."
+    return f"Added {medication_name}. Treatment ends on {end_date}."
 
 
 def list_active_treatments() -> str:
     """List all currently active treatments."""
-    data = _load_data()
-    active = [d for d in data if d["status"] == "active"]
+    docs = db.collection(COLLECTION).where("status", "==", "active").stream()
+    active = [d.to_dict() for d in docs]
 
     if not active:
         return "No active treatments found."
@@ -64,21 +51,19 @@ def list_active_treatments() -> str:
 
 
 def check_reminders() -> str:
-    """Check which treatments are ending soon (within 3 days) and need renewal."""
-    data = _load_data()
+    """Check which treatments are ending soon (within 3 days)."""
+    docs = db.collection(COLLECTION).where("status", "==", "active").stream()
     today = datetime.now().date()
     reminders = []
 
-    for t in data:
-        if t["status"] != "active":
-            continue
+    for d in docs:
+        t = d.to_dict()
         end_date = datetime.strptime(t["end_date"], "%Y-%m-%d").date()
         days_left = (end_date - today).days
 
         if days_left <= 3:
             reminders.append(
-                f"⚠️ {t['medication_name']}: {days_left} day(s) left — "
-                f"time to renew your prescription."
+                f"⚠️ {t['medication_name']}: {days_left} days left — time to renew your prescription."
             )
 
     if not reminders:
