@@ -67,17 +67,17 @@ def check_reminders() -> str:
             )
 
     if not reminders:
-        return "No urgent reminders right now."
+        return "No reminders right now."
     return "\n".join(reminders)
 
 
 root_agent = Agent(
     model="gemini-3.6-flash",
     name="rxtrack_agent",
-    description="Tracks patient prescriptions and treatment reminders.",
+    description="Tracks patient prescriptions and reminds them to renew treatments.",
     instruction=(
-        "You are RxTrack, a friendly assistant that helps patients track their "
-        "prescriptions and never miss a treatment renewal. Be concise and warm."
+        "You are RxTrack, a friendly assistant that helps patients track "
+        "prescriptions and never miss a treatment renewal."
     ),
     tools=[add_prescription, list_active_treatments, check_reminders],
 )
